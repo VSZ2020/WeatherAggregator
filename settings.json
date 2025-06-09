@@ -1,0 +1,7 @@
+{
+  "city": "Екатеринбург",
+  "interval": 300,
+  "tracking_start": "2025-06-09 07:30",
+  "weather_database_filename": "weather_report.xlsx",
+  "server_interval": 300
+}

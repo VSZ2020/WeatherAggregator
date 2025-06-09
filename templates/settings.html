@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки{% endblock %}
+
+{% block content %}
+<h3>Настройки автообновления</h3>
+<form method="post" onsubmit="saveToLocalStorage()">
+    <div class="mb-3">
+        <label>Город:</label>
+        <input name="city" value="{{ settings.city }}" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label>Интервал обновления страницы (сек):</label>
+        <input type="number" name="interval" id="interval" value="{{ settings.interval }}" class="form-control" min="0">
+    </div>
+
+    <div class="mb-3">
+        <label>Интервал обновления на сервере (сек):</label>
+        <input type="number" name="server_interval" value="{{ settings.server_interval }}" class="form-control" min="10">
+    </div>
+
+    <div class="mb-3">
+        <label>Начать отслеживание в (YYYY-MM-dd HH:mm:ss):</label>
+        <input type="datetime-local" name="tracking_start_at" value="{{ settings.tracking_start | replace(' ', 'T')}}" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label>Файл базы данных</label>
+        <input name="db_filename" value="{{ settings.weather_database_filename }}" class="form-control" required>
+    </div>
+
+    <button class="btn btn-primary">Сохранить</button>
+</form>
+<p class="text-muted mt-2">Интервал обновления сохраняется также в браузере</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function saveToLocalStorage() {
+        const interval = document.getElementById("interval").value;
+        localStorage.setItem("refreshInterval", interval);
+    }
+</script>
+{% endblock %}

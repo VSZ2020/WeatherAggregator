@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+    <div id="tracking_status">
+        
+    </div>
+    <div class="mb-3">
+        <h5>Отслеживаемый город</h5>
+        <div class="display-5">{{ default_city }}</span>
+    </div>
+
+    <div class="my-5">
+        <h5>График температуры</h5>
+        <canvas id="tempChart" height="100"></canvas>
+    </div>
+
+    <form method="get" class="mb-3">
+        <label>Фильтр по дате:</label>
+        <input type="date" name="filter_date" class="form-control" onchange="this.form.submit()">
+    </form>
+
+    <div id="data-container" class="table-responsive">
+        {% if table %}
+            {{ table | safe }}
+        {% else %}
+            <p>Данные отсутствуют</p>
+        {% endif %}
+    </div>
+
+    <div class="text-center mt-3">
+        <a class="btn btn-success" href="/download">Скачать Excel</a>
+    </div>
+
+    
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const colors = [
+        'rgba(255, 99, 132, 1)',
+        'rgba(54, 162, 235, 1)',
+        'rgba(255, 206, 86, 1)',
+        'rgba(75, 192, 192, 1)',
+        'rgba(153, 102, 255, 1)'
+    ];
+
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    const tempChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: [] },
+        options: {
+            responsive: true,
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        tooltipFormat: 'dd.MM.yyyy HH:mm',
+                        displayFormats: {
+                            hour: 'dd.MM HH:mm',
+                            day: 'dd.MM.yyyy'
+                        }
+                    },
+                    title: { display: true, text: 'Дата и время' }
+                },
+                y: {
+                    title: { display: true, text: 'Температура (°C)' }
+                }
+            }
+        }
+    });
+
+    function updateData() {
+        fetch("/data")
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("data-container").innerHTML = data.table;
+
+                const newDatasets = Object.keys(data.series).map((source, idx) => ({
+                    label: source,
+                    data: data.series[source],
+                    borderColor: colors[idx % colors.length],
+                    backgroundColor: colors[idx % colors.length],
+                    fill: false,
+                    tension: 0.3
+                }));
+
+                tempChart.data.datasets = newDatasets;
+                tempChart.update();
+            });
+    }
+
+    function updateTrackingStatus(){
+        fetch("/tracking-status")
+            .then(res => res.json())
+            .then(data => {
+                let html = "<div class=\"alert alert-danger d-flex align-items-center\" role=\"alert\"><span class=\"me-2\" style=\"width: 10px; height: 10px; background-color: red; border-radius: 50%; display: inline-block;\"></span><strong>Отслеживание приостановлено</strong></div>"
+                if (data.tracking_status){
+                    html = "<div class=\"alert alert-success d-flex align-items-center\" role=\"alert\"><span class=\"me-2\" style=\"width: 10px; height: 10px; background-color: green; border-radius: 50%; display: inline-block;\"></span><strong>Отслеживание работает</strong></div>"
+                }
+                document.getElementById("tracking_status").innerHTML = html;
+            });
+    }
+
+    const interval = localStorage.getItem("refreshInterval") || 0;
+    if (interval > 0) {
+        updateData(); // initial call
+        updateTrackingStatus();
+        setInterval(updateData, interval * 1000);
+    }
+
+    window.onload = function(){
+        updateData();
+        updateTrackingStatus();
+    };
+</script>
+
+{% endblock %}
