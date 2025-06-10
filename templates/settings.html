@@ -25,8 +25,13 @@
     </div>
 
     <div class="mb-3">
-        <label>Файл базы данных</label>
-        <input name="db_filename" value="{{ settings.weather_database_filename }}" class="form-control" required>
+        <label>Файл базы данных для фактических данных</label>
+        <input name="db_current_filename" value="{{ settings.weather_current_database }}" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label>Файл базы данных для прогноза</label>
+        <input name="db_forecast_filename" value="{{ settings.weather_forecast_database }}" class="form-control" required>
     </div>
 
     <button class="btn btn-primary">Сохранить</button>

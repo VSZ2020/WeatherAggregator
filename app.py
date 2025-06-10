@@ -10,9 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from weather_aggregator import WeatherAggregator
-from providers.accuweather_provider import AccuWeatherProvider
-from providers.yandexweather_provider import YandexWeatherProvider
-from providers.gismeteo_provider import GismeteoProvider
+
 
 SETTINGS_FILE = "settings.json"
 
@@ -21,6 +19,21 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 scheduler = BackgroundScheduler()
 
+def prepare_table_view(df: pd.DataFrame):
+    df = df.fillna('-')
+    df = df.rename(columns={"timestamp": "Время запроса",
+                       "source": "Источник",
+                       "city": "Город",
+                       "T0": "Темп. (C)",
+                       "H0": "Влажн. (%)",
+                       "P0": "Атм. давл. (мм.рт.ст.)",
+                       "Ff": "Скор. ветра (км/ч)",
+                       "WD0": "Напр. ветра",
+                       "UVI": "УФ-индекс",
+                       "AQI": "Инд. кач-ва возд.",
+                       "conditions": "Условия"
+                       })
+    return df
 
 def populate_page_data(filter_date:str = None, settings: SettingsManager = None):
     df = None
@@ -28,18 +41,18 @@ def populate_page_data(filter_date:str = None, settings: SettingsManager = None)
     
     settings = settings or SettingsManager().load_settings()
     city = settings.get("city", "")
-    DATA_FILENAME = settings.get("weather_database_filename")
+    CURRENT_DB_FILENAME = settings.get("weather_current_database")
 
-    if os.path.exists(DATA_FILENAME):
-        df = pd.read_excel(DATA_FILENAME)
-        if filter_date and "Date" in df.columns:
-            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            df = df[df["Date"].dt.strftime("%Y-%m-%d").str.startswith(filter_date)]
+    if os.path.exists(CURRENT_DB_FILENAME):
+        df = pd.read_excel(CURRENT_DB_FILENAME)
+        if filter_date and "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            df = df[df["timestamp"].dt.strftime("%Y-%m-%d").str.startswith(filter_date)]
 
         for _, row in df.iterrows():
-            source = row.get("Source")
-            temp = row.get("TemperatureNow")
-            date = row.get("Date")
+            source = row.get("source")
+            temp = row.get("T0")
+            date = row.get("timestamp")
 
             if pd.notnull(source) and pd.notnull(temp) and pd.notnull(date):
                 iso_time = pd.to_datetime(date).isoformat()
@@ -47,8 +60,10 @@ def populate_page_data(filter_date:str = None, settings: SettingsManager = None)
                     "x": iso_time,
                     "y": float(temp)
                 })
+        df = df.sort_values(by='timestamp',ascending=False)
+        df = prepare_table_view(df)
         return {
-            "table": df.sort_values(by='Date',ascending=False).to_html(index=False, classes="table table-striped table-bordered table-hover align-middle"),
+            "table": df.to_html(index=False, classes="table table-striped table-bordered table-hover align-middle"),
             "series": dict(series_by_source),
             'default_city': city,
         }
@@ -72,21 +87,19 @@ def is_tracking_active(settings: SettingsManager = None):
     return False
 
 
-def update_weather_data(settings: SettingsManager = None):
-    providers = [
-        GismeteoProvider(),
-        AccuWeatherProvider(),
-        YandexWeatherProvider()
-    ]
+def update_weather_data(settings: SettingsManager = None): 
     settings = settings or SettingsManager().load_settings()
     city = settings.get("city","")
-    DATA_FILENAME = settings.get("weather_database_filename")
+    CURRENT_WEATHER_FILENAME = settings.get("weather_current_database")
+    FORECAST_WEATHER_FILENAME = settings.get("weather_forecast_database")
     
     tracking_active = is_tracking_active(settings)
     if tracking_active:
-        aggregator = WeatherAggregator(providers, DATA_FILENAME)
-        df_new = aggregator.collect_data(city)
-        aggregator.append_to_excel(df_new)
+        aggregator = WeatherAggregator(db_current_weather=CURRENT_WEATHER_FILENAME, db_forecast_weather=FORECAST_WEATHER_FILENAME)
+        df_current_new = aggregator.collect_current_data(city)
+        df_forecast_new = aggregator.collect_forecast_data(city)
+        aggregator.append_to_current_report(df_current_new)
+        aggregator.append_to_forecast_report(df_forecast_new)
 
 
 def start_scheduler():
@@ -113,11 +126,18 @@ async def get_weather_table():
 async def get_weather_table():
     return {"tracking_status": is_tracking_active()}
 
-@app.get("/download")
-async def download_file():
-    settings = settings or SettingsManager().load_settings()
-    DATA_FILENAME = settings.get("weather_database_filename")
-    return FileResponse(DATA_FILENAME, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename=DATA_FILENAME)
+@app.get("/download_current")
+async def download_report_current():
+    settings = SettingsManager().load_settings()
+    DB_CURRENT = settings.get("weather_current_database")
+    DB_FORECAST = settings.get("weather_forecast_database")
+    return FileResponse(DB_CURRENT, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename=DB_CURRENT)
+
+@app.get("/download_forecast")
+async def download_report_forecast():
+    settings = SettingsManager().load_settings()
+    DB_FORECAST = settings.get("weather_forecast_database")
+    return FileResponse(DB_FORECAST, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename=DB_FORECAST)
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
@@ -125,13 +145,29 @@ async def settings_page(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request, "settings": settings})
 
 @app.post("/settings", response_class=HTMLResponse)
-async def save_user_settings(request: Request, city: str = Form(...), interval: int = Form(...), tracking_start_at: str = Form(...), db_filename:str = Form(...), server_interval: int = Form(...)):
+async def save_user_settings(request: Request, 
+                             city: str = Form(...), 
+                             interval: int = Form(...), 
+                             tracking_start_at: str = Form(...), 
+                             db_current_filename:str = Form(...), 
+                             db_forecast_filename:str = Form(...), 
+                             server_interval: int = Form(...)):
     if tracking_start_at:
         tracking_start_at = tracking_start_at.replace("T", " ")
-    if db_filename:
-        db_filename = "weather_report.xlsx"
+    if not db_current_filename:
+        db_current_filename = "weather_report_current.xlsx"
+    if not db_forecast_filename:
+        db_forecast_filename = "weather_report_forecast.xlsx"
         
-    SettingsManager().save_settings({"city": city, "interval": interval, "tracking_start": tracking_start_at, "weather_database_filename":db_filename, "server_interval": server_interval})
+    SettingsManager().save_settings(
+        {
+            "city": city, 
+            "interval": interval, 
+            "tracking_start": tracking_start_at, 
+            "weather_current_database":db_current_filename, 
+            "weather_forecast_database":db_forecast_filename, 
+            "server_interval": server_interval
+        })
     
     start_scheduler()
     
