@@ -7,3 +7,4 @@ bs4
 selenium
 uvicorn
 apscheduler
+jinja2
