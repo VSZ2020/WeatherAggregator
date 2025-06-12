@@ -1,4 +1,6 @@
 __pycache__
 *.xlsx
+*.sh
+*.ps1
 run_server.bat
 report_fields.xlsx
