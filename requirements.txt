@@ -3,8 +3,10 @@ openpyxl
 requests
 fastapi
 uvicorn[standard]
-bs4
+beautifulsoup4
 selenium
 uvicorn
 apscheduler
 jinja2
+python-multipart
+lxml
