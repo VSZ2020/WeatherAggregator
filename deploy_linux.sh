@@ -3,7 +3,7 @@ set -e
 
 # === НАСТРОЙКИ ===
 REPO_URL="https://github.com/VSZ2020/WeatherAggregator.git"
-BASE_DIR="/home/user/deploy"
+BASE_DIR="/var/www/weather_agg/deploy"
 RELEASES_DIR="$BASE_DIR/releases"
 RUNNER="$BASE_DIR/app_runner/run_app.sh"
 DEPLOY_LOG="$BASE_DIR/deploy.log"
@@ -26,7 +26,7 @@ log() {
 # }
 
 log "[*] Деплой начался: $TIMESTAMP"
-send_telegram "🚀 Новый деплой запущен в $TIMESTAMP"
+# send_telegram "🚀 Новый деплой запущен в $TIMESTAMP"
 
 # === Определяем текущий порт ===
 if sudo nginx -T | grep -q "$PORT_1"; then
@@ -50,7 +50,7 @@ log "[*] Запускаем новое приложение на порту $NEW
 $RUNNER "$NEW_RELEASE" "$NEW_PORT"
 
 log "[*] Обновляем nginx на порт $NEW_PORT"
-sudo sed -i "s/127.0.0.1:$OLD_PORT/127.0.0.1:$NEW_PORT/" /etc/nginx/sites-available/fastapi
+sudo sed -i "s/127.0.0.1:$OLD_PORT/127.0.0.1:$NEW_PORT/" /etc/nginx/sites-available/weather_agg
 sudo systemctl reload nginx
 
 log "[*] Обновляем симлинк на новую версию"
