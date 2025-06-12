@@ -1,8 +1,10 @@
 numpy
 pandas
+openpyxl
 requests
 fastapi
 uvicorn[standard]
 bs4
 abc
 selenium
+uvicorn
