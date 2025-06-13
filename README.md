@@ -1,5 +1,5 @@
 # Weather aggregator
-Python web-application which is use FastApi and Uvicorn web-server. It provides collected weather data from the weather prividers:
+Python web-application which uses FastApi and Uvicorn web-server. It provides collected weather data from the weather prividers:
 
 - AccuWeather
 - Yandex weather
