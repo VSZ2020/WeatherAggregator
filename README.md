@@ -4,4 +4,3 @@ Python web-application which is use FastApi and Uvicorn web-server. It provides 
 - AccuWeather
 - Yandex weather
 - Gismeteo
-- RP5.ru
